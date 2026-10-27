@@ -1,0 +1,4 @@
+[workflow]
+persistent_facts = ["file:{project-root}/docs/engineering-memory/POLICY.md"]
+activation_steps_append = ["For this reference/static/fixture BMAD task, read docs/engineering-memory/PROJECT_STATE.md, run `git rev-parse HEAD` and `git status --short`, compare exact source, and preserve unfinished work. Do not infer current PASS or permissions from historical state."]
+on_complete = "At a material engineering checkpoint, update docs/engineering-memory/PROJECT_STATE.md with exact inspected/tested/deployed identities separately and append one evidence-linked event to docs/engineering-memory/HISTORY.md. Preserve old history and baseline code. Use only the task-authorized branch and publication authority; no automatic lesson approval, merge or deployment. Report local-only work honestly."

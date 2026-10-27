@@ -1,0 +1,46 @@
+{
+  "observed_at": "2026-10-28",
+  "repository": "borvat/Smart-AI-core-for-Surooh",
+  "base_branch": "main",
+  "base_head": "7d66ec8b7954f4dcf812afbb075bd01a4bed5007",
+  "base_tree": "e56465bdc5eb0a9daaceca20dc3e5f7c3d24e08f",
+  "type": "placeholder",
+  "adaptation": "minimal-reference",
+  "context": {
+    "purpose": "Placeholder repository for a Smart AI Surooh core.",
+    "architecture": [
+      "Pinned main source contains only README.md; no application architecture, runtime or test harness is present."
+    ],
+    "modules": [
+      "README.md"
+    ],
+    "current_state": "Source inspected at main 7d66ec8b7954f4dcf812afbb075bd01a4bed5007 (tree e56465bdc5eb0a9daaceca20dc3e5f7c3d24e08f). README-only, not an empty Git repository. No tested or deployed application state is established.",
+    "verified_features": [
+      "Current source inspection confirms README-only scope; this is repository evidence, not functional acceptance."
+    ],
+    "blockers": [
+      "No implementation or real task fixture exists, so full engineering-memory task-quality acceptance is not applicable to this placeholder."
+    ],
+    "decisions": [
+      "Use minimal engineering state/history and entry instructions; do not create an application runtime merely to exercise memory."
+    ],
+    "unfinished": [
+      "Any future application design and implementation remain unstarted in this inspected source."
+    ],
+    "next_step": "Preserve README; record placeholder role and source pin, then retain minimal resume guidance until real engineering work is assigned.",
+    "evidence_paths": [
+      "README.md"
+    ],
+    "state_path": "docs/engineering-memory/PROJECT_STATE.md",
+    "history_path": "docs/engineering-memory/HISTORY.md"
+  },
+  "inspected_sources": [
+    {
+      "path": "README.md",
+      "blob_sha": "5bc6853b258f3b9feaed7ac0aa893909ff54e256",
+      "error": false,
+      "url": "https://github.com/borvat/Smart-AI-core-for-Surooh/blob/7d66ec8b7954f4dcf812afbb075bd01a4bed5007/README.md"
+    }
+  ],
+  "limits": "Source inspection and historical reports only; no new native tests or deployment observed."
+}
