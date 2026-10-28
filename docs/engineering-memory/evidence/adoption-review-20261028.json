@@ -1,0 +1,13 @@
+{
+  "repository": "borvat/Smart-AI-core-for-Surooh",
+  "reviewed_head": "ff3278f79f0d46842eeada48dc3155576f416340",
+  "desired_development_branch": "main",
+  "current_pr_base": "main",
+  "current_base_protected": false,
+  "integration_state": "BLOCKED BY OWNER APPROVAL",
+  "independent_review": "Three proven narrow defects only: stale Accounting PR47 routing/summary and identical duplicate managed blocks. Existing helper/application behavior unchanged.",
+  "helper_identity": null,
+  "boundary": "No main/master/protected merge, production, service, financial/db, secret/privilege, paid resource or automatic lesson approval.",
+  "rollback": "Reviewed revert of scoped memory merge/transfer; preserve source branches and evidence, no force/reset.",
+  "test_policy": "Reuse exact valid helper/ordinary evidence; only instruction/target changes require focused checks."
+}
