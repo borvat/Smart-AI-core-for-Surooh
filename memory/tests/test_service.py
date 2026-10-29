@@ -324,3 +324,54 @@ def test_reverting_to_earlier_decision_creates_new_active(service, claude, store
 def test_ean_codes_are_not_secrets(service, claude):
     for ean in ("8712345678906", "5901234123457", "08712345678906"):
         assert remember(service, claude, f"EAN {ean} belongs to the blue kettle").created
+
+
+def test_symbols_change_meaning_and_hash(service, claude, store):
+    a = remember(service, claude, "Margin must be > 10%").fact
+    b = remember(service, claude, "Margin must be < 10%").fact
+    c = remember(service, claude, "Price 10 €").fact
+    d = remember(service, claude, "Price 10 $").fact
+    e = remember(service, claude, "Temperature -5").fact
+    f = remember(service, claude, "Temperature 5").fact
+    assert len({a.id, b.id, c.id, d.id, e.id, f.id}) == 6
+    assert recall(service, claude, project_id=A, query="margin > 10%")  # symbol-only tokens don't break FTS
+
+
+def test_user_attaching_subject_to_existing_fact_supersedes(service, claude, store):
+    dec = remember(service, claude, "Ship with PostNL", subject="shipping.carrier").fact
+    plain = remember(service, claude, "Ship with DHL").fact  # no subject yet
+    r = remember(service, claude, "ship with DHL", subject="shipping.carrier")
+    assert r.fact.id == plain.id and r.fact.subject_key == "shipping.carrier"
+    assert r.superseded_id == dec.id and store.get(dec.id).status == "superseded"
+    [got] = recall(service, claude, project_id=A)
+    assert got["id"] == plain.id and got["updated_from"]["id"] == dec.id
+
+
+def test_forget_erases_superseded_copies_of_same_text(service, claude):
+    first = remember(service, claude, "Ship with PostNL", subject="shipping.carrier").fact
+    remember(service, claude, "Ship with DHL", subject="shipping.carrier")
+    again = remember(service, claude, "Ship with PostNL", subject="shipping.carrier").fact
+    assert again.id != first.id
+    service.forget(claude, again.id)
+    exp = service.export(claude, company_id=COMPANY)
+    assert all("PostNL" not in x["text"] for x in exp["facts"])
+    assert [x["text"] for x in exp["facts"]] == ["Ship with DHL"]
+
+
+def test_limit_keeps_active_decisions_over_newer_suggestions(service, claude):
+    dec = remember(service, claude, "Ship with PostNL", subject="shipping.carrier").fact
+    for i in range(25):
+        remember(service, claude, f"Ship option number {i} suggested", speaker="assistant_suggestion")
+    facts = recall(service, claude, project_id=A, limit=20)
+    assert facts[0]["id"] == dec.id
+    facts = recall(service, claude, project_id=A, query="ship", limit=20)
+    assert facts[0]["id"] == dec.id
+
+
+def test_forget_succeeds_when_checkpoint_fails(service, claude, store, monkeypatch):
+    f = remember(service, claude, "temporary fact").fact
+    def boom():
+        raise sqlite3.OperationalError("checkpoint failed")
+    monkeypatch.setattr(store, "checkpoint", boom)
+    assert service.forget(claude, f.id) == {"forgotten": True, "id": f.id}
+    assert store.get(f.id) is None

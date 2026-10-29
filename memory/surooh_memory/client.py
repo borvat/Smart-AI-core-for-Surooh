@@ -79,7 +79,7 @@ class MemoryClient:
         project_id: str,
         text: str,
         source_ref: str,
-        speaker: str = "user",
+        speaker: str,
         kind: str = "fact",
         subject_key: str | None = None,
     ) -> dict[str, Any]:

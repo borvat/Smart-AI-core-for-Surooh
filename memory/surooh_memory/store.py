@@ -75,6 +75,10 @@ _FACT_COLUMNS = (
 )
 
 
+# Active (approved user) facts before proposed suggestions, so LIMIT never drops them.
+_APPROVED_FIRST = "CASE f.status WHEN 'active' THEN 0 ELSE 1 END"
+
+
 @dataclass(frozen=True)
 class Fact:
     seq: int
@@ -188,14 +192,6 @@ class Store:
         ).fetchone()
         return _row_to_fact(row) if row else None
 
-    def proposed_for_subject(self, company_id: str, project_id: str, subject_key: str) -> list[Fact]:
-        rows = self._conn.execute(
-            f"SELECT {_FACT_COLUMNS} FROM facts WHERE company_id = ? AND project_id = ? "
-            "AND subject_key = ? AND status = 'proposed'",
-            (company_id, project_id, subject_key),
-        ).fetchall()
-        return [_row_to_fact(r) for r in rows]
-
     def is_tombstoned(self, company_id: str, project_id: str, content_hash: str) -> bool:
         return (
             self._conn.execute(
@@ -230,13 +226,13 @@ class Store:
                 f"SELECT {', '.join('f.' + c.strip() for c in _FACT_COLUMNS.split(','))} "
                 "FROM facts_fts JOIN facts f ON f.id = facts_fts.fact_id "
                 f"WHERE facts_fts MATCH ? AND {' AND '.join(where)} "
-                "ORDER BY bm25(facts_fts), f.seq DESC LIMIT ?"
+                f"ORDER BY {_APPROVED_FIRST}, bm25(facts_fts), f.seq DESC LIMIT ?"
             )
             params = [fts_query, *params, limit]
         else:
             sql = (
                 f"SELECT {', '.join('f.' + c.strip() for c in _FACT_COLUMNS.split(','))} FROM facts f "
-                f"WHERE {' AND '.join(where)} ORDER BY f.seq DESC LIMIT ?"
+                f"WHERE {' AND '.join(where)} ORDER BY {_APPROVED_FIRST}, f.seq DESC LIMIT ?"
             )
             params.append(limit)
         return [_row_to_fact(r) for r in self._conn.execute(sql, params).fetchall()]
@@ -293,11 +289,23 @@ class Store:
         self._conn.execute(f"UPDATE facts SET {', '.join(sets)} WHERE id = ?", params)
 
     def erase(self, fact: Fact, forgotten_at: str) -> None:
-        """Delete the fact's content everywhere and leave only a hash tombstone."""
-        self._conn.execute("DELETE FROM facts_fts WHERE fact_id = ?", (fact.id,))
-        self._conn.execute("UPDATE facts SET supersedes = NULL WHERE supersedes = ?", (fact.id,))
-        self._conn.execute("UPDATE facts SET superseded_by = NULL WHERE superseded_by = ?", (fact.id,))
-        self._conn.execute("DELETE FROM facts WHERE id = ?", (fact.id,))
+        """Delete this content everywhere in the fact's scope and leave only a hash tombstone.
+
+        Every row in the same company/project with the same content hash is erased
+        (e.g. an older superseded copy of the same text), not just ``fact`` itself.
+        """
+        ids = [
+            r[0]
+            for r in self._conn.execute(
+                "SELECT id FROM facts WHERE company_id = ? AND project_id = ? AND content_hash = ?",
+                (fact.company_id, fact.project_id, fact.content_hash),
+            ).fetchall()
+        ]
+        for fid in ids:
+            self._conn.execute("DELETE FROM facts_fts WHERE fact_id = ?", (fid,))
+            self._conn.execute("UPDATE facts SET supersedes = NULL WHERE supersedes = ?", (fid,))
+            self._conn.execute("UPDATE facts SET superseded_by = NULL WHERE superseded_by = ?", (fid,))
+            self._conn.execute("DELETE FROM facts WHERE id = ?", (fid,))
         self._conn.execute(
             "INSERT OR IGNORE INTO tombstones (company_id, project_id, content_hash, forgotten_at) "
             "VALUES (?, ?, ?, ?)",

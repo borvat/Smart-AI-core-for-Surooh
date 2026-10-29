@@ -48,8 +48,13 @@ class BearerAuth:
         self.registry = registry
 
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
-        if scope["type"] != "http" or scope.get("path") in _PUBLIC_PATHS:
+        if scope["type"] == "lifespan" or (scope["type"] == "http" and scope.get("path") in _PUBLIC_PATHS):
             await self.app(scope, receive, send)
+            return
+        if scope["type"] != "http":
+            # No websocket (or other) surface exists; never pass one through unauthenticated.
+            if scope["type"] == "websocket":
+                await send({"type": "websocket.close", "code": 1008})
             return
         header = None
         for k, v in scope.get("headers", []):
@@ -77,9 +82,20 @@ def _error(exc: ServiceError, *, write: bool) -> JSONResponse:
 
 
 async def _json_body(request: Request) -> dict[str, Any]:
-    raw = await request.body()
-    if len(raw) > MAX_REST_BODY:
-        raise _BodyError(413, "body too large")
+    declared = request.headers.get("content-length")
+    if declared is not None:
+        if not declared.isdigit():
+            raise _BodyError(400, "invalid Content-Length")
+        if int(declared) > MAX_REST_BODY:
+            raise _BodyError(413, "body too large")
+    chunks: list[bytes] = []
+    size = 0
+    async for chunk in request.stream():
+        size += len(chunk)
+        if size > MAX_REST_BODY:
+            raise _BodyError(413, "body too large")
+        chunks.append(chunk)
+    raw = b"".join(chunks)
     try:
         data = json.loads(raw or b"{}")
     except (json.JSONDecodeError, UnicodeDecodeError):

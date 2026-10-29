@@ -63,6 +63,8 @@ def test_different_text_different_hash():
         lambda: "use " + rand(48) + " for the webhook",
         lambda: "eyJ" + rand(20) + ".eyJ" + rand(20) + "." + rand(20),
         lambda: "card 4111 1111 1111 1111",
+        lambda: "card 4111111111111111",
+        lambda: "card 4111-1111-1111-1111",
     ],
 )
 def test_secret_detected(text):
@@ -78,6 +80,9 @@ def test_secret_detected(text):
         "نشحن كل الطلبات عبر PostNL",
         "Order 1234567 was refunded.",
         "subject shipping.carrier decided on 2026-10-29",
+        "See https://docs.example.com/shipping/postnl-contract-2026 for terms",
+        "EAN 8712345678906 12 pieces",
+        "EAN 8712345678906 and EAN 5901234123457 in stock",
     ],
 )
 def test_ordinary_text_not_flagged(text):

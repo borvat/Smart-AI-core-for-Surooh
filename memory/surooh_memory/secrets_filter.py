@@ -29,7 +29,10 @@ _FORMAT_PATTERNS: list[tuple[str, re.Pattern[str]]] = [
     ("url_credentials", re.compile(r"[a-z][a-z0-9+.-]*://[^\s/:@]+:[^\s/@]+@", re.I)),
     ("iban", re.compile(r"\b[A-Z]{2}\d{2}(?: ?[A-Z0-9]{4}){3,7}\b")),
     # 15-19 digits + Luhn. 13/14-digit EAN/GTIN product codes are deliberately excluded.
-    ("card_number", re.compile(r"\b(?:\d[ -]?){15,19}\b")),
+    # Contiguous 15-19 digits, or standard grouped layouts (4-4-4-4[-1..3], Amex 4-6-5).
+    ("card_number", re.compile(
+        r"(?<![\d-])(?:\d{15,19}|\d{4}([ -])\d{4}\1\d{4}\1\d{4}(?:\1\d{1,3})?|\d{4}([ -])\d{6}\2\d{5})(?![\d-])"
+    )),
 ]
 
 # "<credential word> <sep> <value>" in English, Dutch and Arabic.
@@ -54,6 +57,8 @@ _PLAIN_WORD_ALLOWED = {
 }
 
 _HIGH_ENTROPY_TOKEN = re.compile(r"[A-Za-z0-9+/_=.-]{32,}")
+# URLs without userinfo are removed before the entropy check (credential URLs are caught above).
+_PLAIN_URL = re.compile(r"\b[a-z][a-z0-9+.-]*://[^\s@]+(?=\s|$)", re.I)
 
 
 def _shannon_entropy(s: str) -> float:
@@ -103,12 +108,12 @@ def detect(text: str, *, entropy: bool = True) -> str | None:
 
     if not entropy:
         return None
-    for m in _HIGH_ENTROPY_TOKEN.finditer(t):
+    for m in _HIGH_ENTROPY_TOKEN.finditer(_PLAIN_URL.sub(" ", t)):
         tok = m.group(0)
         classes = sum(
             bool(re.search(p, tok)) for p in (r"[a-z]", r"[A-Z]", r"[0-9]")
         )
-        if classes >= 2 and _shannon_entropy(tok) >= 3.5 and not tok.startswith(("http", "www.")):
+        if classes >= 2 and _shannon_entropy(tok) >= 3.5:
             return "high_entropy_string"
     return None
 

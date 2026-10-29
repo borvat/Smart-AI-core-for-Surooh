@@ -14,6 +14,7 @@ Write pipeline (``remember``), in order:
 
 from __future__ import annotations
 
+import logging
 import re
 import sqlite3
 import uuid
@@ -32,6 +33,8 @@ MAX_TEXT = 4000
 MAX_SOURCE_REF = 256
 MAX_LIMIT = 100
 DEFAULT_LIMIT = 20
+
+log = logging.getLogger("surooh_memory")
 
 _ID_RE = re.compile(r"^[a-z0-9][a-z0-9_-]{0,63}$")
 _SUBJECT_RE = re.compile(r"^[a-z0-9][a-z0-9_.-]{0,127}$")
@@ -102,7 +105,7 @@ class RememberResult:
 
 
 def _fts_query(text: str) -> str | None:
-    toks = norm.tokens(text)
+    toks = [t for t in norm.tokens(text) if any(ch.isalnum() for ch in t)]
     if not toks:
         return None
     # Each token quoted (no FTS syntax injection), prefix-matched, OR-ed; bm25 ranks.
@@ -163,10 +166,12 @@ class MemoryService:
 
                 existing = s.find_live_by_hash(company_id, project_id, chash)
                 if existing is not None:
-                    if not (speaker == "user" and existing.status == "proposed"):
+                    resubject = subject_key is not None and subject_key != existing.subject_key
+                    if not (speaker == "user" and (existing.status == "proposed" or resubject)):
                         return RememberResult(existing, created=False, deduplicated=True, superseded_id=None)
-                    # The user stated an assistant's suggestion as their own decision:
-                    # promote that row (no new row) and let it supersede the old decision.
+                    # The user stated an assistant's suggestion as their own decision, or attached
+                    # this text to a (new) subject: update that row (no new row) and let it
+                    # supersede the current decision on the subject.
                     now = _now()
                     subject = subject_key or existing.subject_key
                     old = s.active_for_subject(company_id, project_id, subject) if subject else None
@@ -283,9 +288,13 @@ class MemoryService:
                 if fact is None or not principal.allows("write", fact.company_id, fact.project_id):
                     raise NotFound("no such fact")
                 s.erase(fact, _now())
-            self.store.checkpoint()
         except sqlite3.Error as exc:
             raise StoreUnavailable(f"memory store error: {type(exc).__name__}") from exc
+        # The forget is committed; a failed WAL checkpoint must not report it as failed.
+        try:
+            self.store.checkpoint()
+        except sqlite3.Error as exc:
+            log.warning("WAL checkpoint after forget failed: %s", type(exc).__name__)
         return {"forgotten": True, "id": fact_id}
 
     # -- export ------------------------------------------------------------

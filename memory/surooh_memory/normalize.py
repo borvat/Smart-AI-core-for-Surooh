@@ -42,11 +42,19 @@ def _strip_marks(text: str) -> str:
     return "".join(ch for ch in decomposed if not unicodedata.combining(ch))
 
 
+# Meaning-bearing symbols kept as their own tokens, so "> 10%" and "< 10%" differ.
+_KEPT_CHARS = frozenset("%-")
+_KEPT_CATEGORIES = frozenset({"Sm", "Sc"})  # math (< > = + ...) and currency (€ $ ...)
+
+
 def _punct_to_space(text: str) -> str:
     out = []
     for ch in text:
         cat = unicodedata.category(ch)
-        out.append(" " if cat[0] in ("P", "S", "Z", "C") else ch)
+        if ch in _KEPT_CHARS or cat in _KEPT_CATEGORIES:
+            out.append(f" {ch} ")
+        else:
+            out.append(" " if cat[0] in ("P", "S", "Z", "C") else ch)
     return "".join(out)
 
 

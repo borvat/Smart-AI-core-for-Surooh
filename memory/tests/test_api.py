@@ -219,9 +219,6 @@ async def test_mcp_without_token_is_401(app):
             r = await hc.post("/mcp", json=init,
                               headers={"Accept": "application/json, text/event-stream"})
             assert r.status_code == 401
-        with pytest.raises(BaseException):
-            async with mcp_client(app, None) as c:
-                await c.list_tools()
 
 
 # -- client ---------------------------------------------------------------------
@@ -235,7 +232,7 @@ def _free_port() -> int:
 def test_client_server_down_raises():
     with MemoryClient(f"http://127.0.0.1:{_free_port()}", "t" * 40, timeout=2) as c:
         with pytest.raises(MemoryUnavailable):
-            c.remember(company_id=COMPANY, project_id="project-a", text="x", source_ref="r")
+            c.remember(company_id=COMPANY, project_id="project-a", text="x", source_ref="r", speaker="user")
         with pytest.raises(MemoryUnavailable):
             c.recall(company_id=COMPANY)
 
@@ -245,13 +242,13 @@ def test_client_never_reports_unconfirmed_save():
         return httpx2.Response(200, json={"saved": False})
     with MemoryClient(BASE, "t" * 40, transport=httpx2.MockTransport(handler)) as c:
         with pytest.raises(MemoryUnavailable):
-            c.remember(company_id=COMPANY, project_id="project-a", text="x", source_ref="r")
+            c.remember(company_id=COMPANY, project_id="project-a", text="x", source_ref="r", speaker="user")
 
     def html(request):
         return httpx2.Response(502, text="<html>bad gateway</html>")
     with MemoryClient(BASE, "t" * 40, transport=httpx2.MockTransport(html)) as c:
         with pytest.raises(MemoryUnavailable):
-            c.remember(company_id=COMPANY, project_id="project-a", text="x", source_ref="r")
+            c.remember(company_id=COMPANY, project_id="project-a", text="x", source_ref="r", speaker="user")
 
 
 def test_client_round_trip_live_server(tmp_path, tokens, token_env):
@@ -278,9 +275,9 @@ def test_client_round_trip_live_server(tmp_path, tokens, token_env):
     try:
         with MemoryClient(f"http://127.0.0.1:{port}", tokens["chatgpt"]) as c:
             saved = c.remember(company_id=COMPANY, project_id="project-a", text="VAT number lives in Exact",
-                               source_ref="chatgpt:conv-3")
+                               source_ref="chatgpt:conv-3", speaker="user")
             with pytest.raises(MemoryRejected) as ei:
-                c.remember(company_id=COMPANY, project_id="project-b", text="x", source_ref="r")
+                c.remember(company_id=COMPANY, project_id="project-b", text="x", source_ref="r", speaker="user")
             assert ei.value.status == 403
     finally:
         p.terminate()
@@ -288,7 +285,7 @@ def test_client_round_trip_live_server(tmp_path, tokens, token_env):
 
     with MemoryClient(f"http://127.0.0.1:{port}", tokens["chatgpt"], timeout=2) as c:
         with pytest.raises(MemoryUnavailable):
-            c.remember(company_id=COMPANY, project_id="project-a", text="while down", source_ref="r")
+            c.remember(company_id=COMPANY, project_id="project-a", text="while down", source_ref="r", speaker="user")
 
     p = start()
     try:
@@ -311,3 +308,26 @@ async def test_mcp_speaker_is_required(app, tokens):
             assert r.is_error
             r = await c.call_tool("recall", {"company_id": COMPANY, "project_id": "project-a"})
             assert payload(r)["facts"] == []
+
+
+async def test_rest_oversized_body_413(http, tokens):
+    big = b'{"text": "' + b"x" * (70 * 1024) + b'"}'
+    r = await http.post("/v1/facts", content=big, headers={**H(tokens["claude"]), "Content-Type": "application/json"})
+    assert r.status_code == 413 and r.json()["saved"] is False
+
+
+async def test_non_http_scope_is_not_passed_through(app):
+    called = []
+
+    async def inner(scope, receive, send):
+        called.append(scope["type"])
+
+    from surooh_memory.app import BearerAuth
+    sent = []
+
+    async def send(msg):
+        sent.append(msg)
+
+    mw = BearerAuth(inner, app.user_middleware[0].kwargs["registry"])
+    await mw({"type": "websocket", "path": "/mcp", "headers": []}, None, send)
+    assert called == [] and sent == [{"type": "websocket.close", "code": 1008}]

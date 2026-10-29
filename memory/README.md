@@ -106,9 +106,10 @@ cd memory
 python -m venv .venv && . .venv/bin/activate
 pip install -e '.[test]'
 
-# 1. make a token hash (token read from stdin, never put on the command line)
-python -c "import secrets; print(secrets.token_urlsafe(32))" > /tmp/claude.tok   # keep it private
-python -m surooh_memory hash-token < /tmp/claude.tok
+# 1. make a token and its hash; the token stays in a shell variable (no file, not on a command line)
+TOKEN="$(python -c 'import secrets; print(secrets.token_urlsafe(32))')"
+printf '%s\n' "$TOKEN" | python -m surooh_memory hash-token   # prints the sha256 for the config
+# hand "$TOKEN" to the assistant's own secret store, then: unset TOKEN
 
 # 2. configure principals with hashes only
 export SUROOH_MEMORY_TOKENS='[{"principal":"claude","token_sha256":"<hash>","scopes":["surooh/*"],"permissions":["read","write"]}]'
