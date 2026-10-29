@@ -3,14 +3,14 @@ title: 'Surooh Memory core service v0'
 type: 'feature'
 ticket: ''
 created: '2026-10-29'
-status: 'in-progress'
+status: 'in-review'
 baseline_revision: '3a1133105eb14ff58522b844b7ad65f227b790e3'
 route: 'full'
 route_source: 'auto'
 risk: 'high'
-review: ''
-review_source: ''
-lenses_ran: []
+review: 'quick'
+review_source: 'pinned'
+lenses_ran: ['quick']
 review_loop_iteration: 0
 context: []
 ---
@@ -53,16 +53,16 @@ context: []
 ## Tasks & Acceptance
 
 **Execution:**
-- [ ] `memory/pyproject.toml` -- package + deps -- reproducible env
-- [ ] `memory/surooh_memory/normalize.py` -- Arabic/Latin normalization, light al- prefix stripping, content hash -- dedup + search
-- [ ] `memory/surooh_memory/secrets_filter.py` -- secret detectors -- never store credentials
-- [ ] `memory/surooh_memory/store.py` -- SQLite schema, FTS5, repository -- persistence (SQL isolated for later Postgres adapter)
-- [ ] `memory/surooh_memory/service.py` -- write pipeline, recall, forget, export -- business rules
-- [ ] `memory/surooh_memory/auth.py` -- token→principal scopes from env, hashed, constant-time -- access control
-- [ ] `memory/surooh_memory/app.py` -- Starlette REST + MCP mount behind auth -- API
-- [ ] `memory/surooh_memory/client.py` -- fail-loud client -- for future hooks
-- [ ] `memory/tests/` -- matrix + acceptance 4–7 -- proof
-- [ ] `memory/README.md` -- architecture, threat model, support status -- documentation
+- [x] `memory/pyproject.toml` -- package + deps -- reproducible env
+- [x] `memory/surooh_memory/normalize.py` -- Arabic/Latin normalization, light al- prefix stripping, content hash -- dedup + search
+- [x] `memory/surooh_memory/secrets_filter.py` -- secret detectors -- never store credentials
+- [x] `memory/surooh_memory/store.py` -- SQLite schema, FTS5, repository -- persistence (SQL isolated for later Postgres adapter)
+- [x] `memory/surooh_memory/service.py` -- write pipeline, recall, forget, export -- business rules
+- [x] `memory/surooh_memory/auth.py` -- token→principal scopes from env, hashed, constant-time -- access control
+- [x] `memory/surooh_memory/app.py` -- Starlette REST + MCP mount behind auth -- API
+- [x] `memory/surooh_memory/client.py` -- fail-loud client -- for future hooks
+- [x] `memory/tests/` -- matrix + acceptance 4–7 -- proof
+- [x] `memory/README.md` -- architecture, threat model, support status -- documentation
 
 **Acceptance Criteria:**
 - Given a running service restarted on the same DB, when recalling, then previously saved facts return.
@@ -70,6 +70,13 @@ context: []
 - Given an MCP client with a valid token, when calling `remember` then `recall`, then the fact round-trips; without a token the MCP endpoint returns 401.
 
 ## Implementation Notes
+
+- MCP tool errors arrive as `Error executing tool <name>: {json}` (SDK prefix); the JSON body carries `saved: false` on failed writes.
+- MCP `remember` requires `speaker` (no default), so an assistant must declare user vs suggestion explicitly.
+- `source_assistant` is always the authenticated principal name; a REST body field of that name is rejected (422).
+- Forget/out-of-scope ids both return 404 (no existence oracle). Forgotten-content re-add returns 409 `forgotten`.
+- Card-number detector requires 15–19 Luhn-valid digits so 13/14-digit EAN/GTIN codes are not rejected.
+- A user restating an assistant suggestion promotes that row to an active user decision instead of creating a duplicate.
 
 ## Plan Change Log
 

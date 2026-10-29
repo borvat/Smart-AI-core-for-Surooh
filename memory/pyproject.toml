@@ -1,0 +1,34 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "surooh-memory"
+version = "0.1.0"
+description = "Surooh Memory core: one shared, scoped, provenance-tagged memory service for ChatGPT, Claude and later SAM/Hermes (MCP + REST)."
+readme = "README.md"
+requires-python = ">=3.12"
+# Pinned to the versions this module was built and tested against.
+dependencies = [
+    "mcp==2.3.0",
+    "starlette==1.10.0",
+    "uvicorn==0.54.0",
+    "pydantic==2.14.1",
+    "httpx2==2.16.0",
+    "anyio==4.15.1",
+]
+
+[project.optional-dependencies]
+test = ["pytest==9.2.0"]
+
+[project.scripts]
+surooh-memory = "surooh_memory.__main__:main"
+
+[tool.setuptools]
+packages = ["surooh_memory"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+addopts = "-p no:cacheprovider"
+filterwarnings = ["error::pytest.PytestUnraisableExceptionWarning"]
